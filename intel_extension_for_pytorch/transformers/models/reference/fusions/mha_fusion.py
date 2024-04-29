@@ -19,7 +19,7 @@ def longrope(
     seq_len,
     rope_type,
 ):
-    if seq_len is not None and seq_len > max_seq_len_cached:
+    if seq_len > max_seq_len_cached:
         if rope_type == 1:  # Phi3ForCausalLM
             return (
                 max_position_embeddings,
@@ -156,22 +156,23 @@ class RotaryEmbedding(torch.nn.Module):
             rope_type = 1
         elif self.model_backbone in ["FalconForCausalLM", "RWForCausalLM"]:
             rope_type = 2
-        max_seq_len_cached, self.sin_cos, self.sin_cached, self.cos_cached = (
-            torch.ops.myops.longrope(
-                torch.tensor(self.inv_freq).contiguous(),
-                torch.tensor(self.max_seq_len_cached).contiguous(),
-                torch.tensor(self.max_position_embeddings).contiguous(),
-                self.sin_cos.contiguous(),
-                self.sin_cached.contiguous(),
-                self.cos_cached.contiguous(),
-                self.sin_cos_long.contiguous() if rope_type == 1 else None,
-                self.sin_cached_long.contiguous() if rope_type == 1 else None,
-                self.cos_cached_long.contiguous() if rope_type == 1 else None,
-                torch.tensor(seq_len).contiguous(),
-                torch.tensor(rope_type).contiguous(),
+        if seq_len is not None:
+            max_seq_len_cached, self.sin_cos, self.sin_cached, self.cos_cached = (
+                torch.ops.myops.longrope(
+                    torch.tensor(self.inv_freq).contiguous(),
+                    torch.tensor(self.max_seq_len_cached).contiguous(),
+                    torch.tensor(self.max_position_embeddings).contiguous(),
+                    self.sin_cos.contiguous(),
+                    self.sin_cached.contiguous(),
+                    self.cos_cached.contiguous(),
+                    self.sin_cos_long.contiguous() if rope_type == 1 else None,
+                    self.sin_cached_long.contiguous() if rope_type == 1 else None,
+                    self.cos_cached_long.contiguous() if rope_type == 1 else None,
+                    torch.tensor(seq_len).contiguous(),
+                    torch.tensor(rope_type).contiguous(),
+                )
             )
-        )
-        self.max_seq_len_cached = max_seq_len_cached.item()
+            self.max_seq_len_cached = max_seq_len_cached.item()
         return self.sin_cos, self.sin_cached, self.cos_cached
 
 
