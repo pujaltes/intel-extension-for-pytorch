@@ -3231,8 +3231,6 @@ def Phi3Model_forward(
     else:
         raise ValueError("You have to specify either input_ids or inputs_embeds")
 
-    past_key_values_length = 0
-
     if self.gradient_checkpointing and self.training:
         if use_cache:
             logger.warning_once(
@@ -3267,13 +3265,34 @@ def Phi3Model_forward(
             else None
         )
     else:
-        # 4d mask is passed through the layers
-        attention_mask = _prepare_4d_causal_attention_mask(
-            attention_mask,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
-        )
+        if self.config.sliding_window is not None:
+            # 4d mask is passed through the layers
+            dtype = inputs_embeds.dtype
+            if attention_mask is not None and len(attention_mask.shape) == 2:
+                expanded_mask = (
+                    attention_mask[:, None, None, :]
+                    .expand(batch_size, 1, seq_length, attention_mask.shape[-1])
+                    .to(dtype)
+                )
+                inverted_mask = 1.0 - expanded_mask
+                expanded_attn_mask = inverted_mask.masked_fill(
+                    inverted_mask.to(torch.bool), torch.finfo(dtype).min
+                )
+                attention_mask = torch.ops.myops.make_causal_mask(
+                    attention_mask.contiguous(),
+                    torch.tensor(past_key_values_length).contiguous(),
+                    torch.tensor(self.config.sliding_window).contiguous(),
+                    inputs_embeds.contiguous(),
+                    expanded_attn_mask.contiguous(),
+                )
+        else:
+            # 4d mask is passed through the layers
+            attention_mask = _prepare_4d_causal_attention_mask(
+                attention_mask,
+                (batch_size, seq_length),
+                inputs_embeds,
+                past_key_values_length,
+            )
 
     hidden_states = inputs_embeds
 
