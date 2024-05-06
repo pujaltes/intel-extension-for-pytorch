@@ -97,6 +97,8 @@ class RotaryEmbedding(torch.nn.Module):
                     self.scaling_factor = 0.1 * math.log(scale) + 1.0
             self.max_seq_len_cached = self.original_max_position_embeddings
         self.register_buffer("inv_freq", inv_freq, persistent=False)
+        if backbone == "Phi3ForCausalLM" and "long_factor" not in kwargs:
+            self.max_seq_len_cached = self.max_seq_len_cached + 256
         t = torch.arange(
             self.max_seq_len_cached,
             dtype=self.inv_freq.dtype,
