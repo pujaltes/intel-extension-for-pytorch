@@ -1471,11 +1471,66 @@ masked_multihead_self_attention_kernel_impl(
         add_casual_mask.value_or(true));
   }
 }
+
+
+at::Tensor prepare_4d_causal_attention_mask_kernel_impl(at::Tensor& attention_mask, at::Tensor& inputs_embeds) {
+  auto dtype = inputs_embeds.scalar_type();
+  int64_t batch_size = inputs_embeds.size(0);
+  int64_t seq_length = inputs_embeds.size(1);
+  int64_t src_length = attention_mask.size(-1);
+
+  at::Tensor expanded_mask = torch::empty({batch_size, 1, seq_length, src_length}, inputs_embeds.options());
+  attention_mask = attention_mask.to(inputs_embeds.dtype());
+  if (dtype == at::kFloat){
+    float* attention_mask_ptr = attention_mask.data_ptr<float>();
+    float* expanded_mask_ptr = expanded_mask.data_ptr<float>();
+    #pragma omp parallel for collapse(2)
+    for (int64_t b = 0; b < batch_size; ++b) {
+        for (int64_t l = 0; l < seq_length; ++l) {
+            for (int64_t c = 0; c < src_length; ++c) {
+                int64_t idx = b * seq_length * src_length + l * src_length + c;
+                float inverted_mask_value = 1.0 - attention_mask_ptr[b*src_length+c];
+                if (inverted_mask_value != 0) {
+                    expanded_mask_ptr[idx] = -std::numeric_limits<float>::infinity();
+                } else {
+                    expanded_mask_ptr[idx] = inverted_mask_value;
+                }
+            }
+        }
+    }
+  } else if (dtype == at::kBFloat16){
+    at::BFloat16* attention_mask_ptr = attention_mask.data_ptr<at::BFloat16>();
+    at::BFloat16* expanded_mask_ptr = expanded_mask.data_ptr<at::BFloat16>();
+    #pragma omp parallel for collapse(2)
+    for (int64_t b = 0; b < batch_size; ++b) {
+        for (int64_t l = 0; l < seq_length; ++l) {
+            for (int64_t c = 0; c < src_length; ++c) {
+                int64_t idx = b * seq_length * src_length + l * src_length + c;
+                at::BFloat16 inverted_mask_value = 1.0 - attention_mask_ptr[b*src_length+c];
+                if (inverted_mask_value != 0) {
+                    expanded_mask_ptr[idx] = -std::numeric_limits<at::BFloat16>::infinity();
+                } else {
+                    expanded_mask_ptr[idx] = inverted_mask_value;
+                }
+            }
+        }
+    }
+
+  }
+
+
+  return expanded_mask;
+}
 } // anonymous namespace
 
 IPEX_REGISTER_DISPATCH(
     masked_multihead_self_attention_kernel_stub,
     &masked_multihead_self_attention_kernel_impl);
+
+
+IPEX_REGISTER_DISPATCH(
+    prepare_4d_causal_attention_mask_kernel_stub,
+    &prepare_4d_causal_attention_mask_kernel_impl);
 
 } // namespace cpu
 } // namespace torch_ipex
