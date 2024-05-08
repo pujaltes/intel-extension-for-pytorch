@@ -2003,8 +2003,6 @@ def _Phi3Attention_forward(
     value_states = value_states.view(
         bsz, q_len, self.num_key_value_heads, self.head_dim
     )
-    key_states = repeat_kv(key_states, self.num_key_value_groups)
-    value_states = repeat_kv(value_states, self.num_key_value_groups)
     (attn_output, attn_weights, past_key_value) = self._IPEXScaleDotProduct(
         query_states,
         key_states,
@@ -2194,9 +2192,9 @@ class _IPEXAttentionRef(nn.Module):
                     if "type" in config.rope_scaling:
                         extra_inputs["type"] = config.rope_scaling["type"]
                 if hasattr(config, "original_max_position_embeddings"):
-                    extra_inputs["original_max_position_embeddings"] = (
-                        config.original_max_position_embeddings
-                    )
+                    extra_inputs[
+                        "original_max_position_embeddings"
+                    ] = config.original_max_position_embeddings
                 self._IPEXROPE = _IPEXRopeRef(
                     self.max_position_embeddings,
                     self.pos_embd_dim,
