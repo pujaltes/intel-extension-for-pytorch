@@ -3268,17 +3268,12 @@ def Phi3Model_forward(
         if self.config.sliding_window is not None:
             # 4d mask is passed through the layers
             if attention_mask is not None and len(attention_mask.shape) == 2:
-                expanded_attn_mask = (
-                    torch.ops.torch_ipex.prepare_4d_causal_attention_mask(
-                        attention_mask, inputs_embeds
-                    )
-                )
-                attention_mask = torch.ops.myops.make_causal_mask(
-                    attention_mask.contiguous(),
+                attention_mask = torch.ops.torch_ipex.prepare_4d_causal_attention_mask(
+                    attention_mask,
+                    inputs_embeds,
                     torch.tensor(past_key_values_length).contiguous(),
-                    torch.tensor(self.config.sliding_window).contiguous(),
-                    inputs_embeds.contiguous(),
-                    expanded_attn_mask.contiguous(),
+                    torch.tensor(torch.finfo(inputs_embeds.dtype).min).contiguous(),
+                    self.config.sliding_window,
                 )
         else:
             # 4d mask is passed through the layers

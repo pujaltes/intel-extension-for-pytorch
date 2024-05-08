@@ -2943,68 +2943,6 @@ def GLM2_get_masks(self, input_ids, past_key_values, padding_mask=None):
     return full_attention_mask
 
 
-@torch.library.impl("myops::make_causal_mask", "cpu")
-def make_causal_mask(
-    attention_mask_2d,
-    past_key_values_length,
-    sliding_window,
-    inputs_embeds,
-    expanded_attn_mask,
-):
-    causal_4d_mask = None
-    dtype = inputs_embeds.dtype
-    _, query_length = inputs_embeds.shape[:2]
-    mask = torch.full(
-        (query_length, query_length),
-        torch.finfo(dtype).min,
-        device=attention_mask_2d.device,
-    )
-    mask_cond = torch.arange(mask.size(-1), device=attention_mask_2d.device)
-    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
-
-    mask = mask.to(dtype)
-    if past_key_values_length > 0:
-        mask = torch.cat(
-            [
-                torch.zeros(
-                    query_length,
-                    past_key_values_length,
-                    dtype=dtype,
-                    device=attention_mask_2d.device,
-                ),
-                mask,
-            ],
-            dim=-1,
-        )
-    diagonal = past_key_values_length - sliding_window + 1
-
-    context_mask = 1 - torch.triu(
-        torch.ones_like(mask, dtype=torch.int), diagonal=diagonal.item()
-    )
-    mask.masked_fill_(context_mask.bool(), torch.finfo(dtype).min)
-
-    causal_4d_mask = mask[None, None, :, :].expand(
-        attention_mask_2d.shape[0],
-        1,
-        query_length,
-        query_length + past_key_values_length,
-    )
-    if causal_4d_mask is not None:
-        expanded_4d_mask = causal_4d_mask.masked_fill(
-            expanded_attn_mask.bool(), torch.finfo(dtype).min
-        )
-    else:
-        expanded_4d_mask = expanded_attn_mask
-    return expanded_4d_mask
-
-
-torch.library.define(
-    "myops::make_causal_mask",
-    "(Tensor attention_mask_2d, Tensor past_key_values_length, Tensor sliding_window, "
-    + "Tensor inputs_embeds, Tensor expanded_attn_mask) -> (Tensor)",
-)
-
-
 def _to_4d(
     self,
     attention_mask_2d: torch.Tensor,

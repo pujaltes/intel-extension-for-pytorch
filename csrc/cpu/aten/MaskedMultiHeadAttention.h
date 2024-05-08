@@ -25,7 +25,10 @@ masked_multihead_self_attention(
 
 at::Tensor prepare_4d_causal_attention_mask_forward_cpu(
     at::Tensor& attention_mask,
-    at::Tensor& inputs_embeds);
+    at::Tensor& inputs_embeds,
+    at::Tensor& past_kv_len,
+    at::Tensor& finfo_min,
+    int64_t sliding_window);
 } // namespace
 
 using masked_multihead_self_attention_kernel_fn =
@@ -46,8 +49,12 @@ using masked_multihead_self_attention_kernel_fn =
 IPEX_DECLARE_DISPATCH(
     masked_multihead_self_attention_kernel_fn,
     masked_multihead_self_attention_kernel_stub);
-using prepare_4d_causal_attention_mask_kernel_fn =
-    at::Tensor (*)(at::Tensor& attention_mask, at::Tensor& inputs_embeds);
+using prepare_4d_causal_attention_mask_kernel_fn = at::Tensor (*)(
+    at::Tensor& attention_mask,
+    at::Tensor& inputs_embeds,
+    at::Tensor& past_kv_len,
+    at::Tensor& finfo_min,
+    int64_t sliding_window);
 
 IPEX_DECLARE_DISPATCH(
     prepare_4d_causal_attention_mask_kernel_fn,

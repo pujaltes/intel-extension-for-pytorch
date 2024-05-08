@@ -57,9 +57,17 @@ masked_multihead_self_attention_forward_cpu(
 
 at::Tensor prepare_4d_causal_attention_mask_forward_cpu(
     at::Tensor& attention_mask,
-    at::Tensor& inputs_embeds) {
+    at::Tensor& inputs_embeds,
+    at::Tensor& past_kv_len,
+    at::Tensor& finfo_min,
+    int64_t sliding_window) {
   return prepare_4d_causal_attention_mask_kernel_stub(
-      kCPU, attention_mask, inputs_embeds);
+      kCPU,
+      attention_mask,
+      inputs_embeds,
+      past_kv_len,
+      finfo_min,
+      sliding_window);
 }
 
 } // namespace cpu
@@ -80,7 +88,7 @@ TORCH_LIBRARY_FRAGMENT(torch_ipex, m) {
 
 TORCH_LIBRARY_FRAGMENT(torch_ipex, m) {
   m.def(
-      "prepare_4d_causal_attention_mask(Tensor attention_mask, Tensor inputs_embeds)-> (Tensor)");
+      "prepare_4d_causal_attention_mask(Tensor attention_mask, Tensor inputs_embeds, Tensor past_kv_len, Tensor finfo_min, int sliding_window)-> (Tensor)");
   m.impl(
       "prepare_4d_causal_attention_mask",
       c10::DispatchKey::CPU,
